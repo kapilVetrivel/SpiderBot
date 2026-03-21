@@ -235,8 +235,7 @@ class SpiderBot:
                     servo = LX16A(servo_id)
                     servo.set_angle_limits(min_angle, max_angle)
                     servo.move(home_angle)
-                    time.sleep(0.25)
-                    
+                    time.sleep(0.25)        
                 
 
             print("Servo limits imported successfully.\n")
