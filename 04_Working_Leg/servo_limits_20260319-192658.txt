@@ -1,0 +1,4 @@
+Servo ID: 1, Min Angle: 11.76, Max Angle: 141.12, Target Angle: 76.44000000000001
+Servo ID: 3, Min Angle: 102.0, Max Angle: 230.88, Target Angle: 166.44
+Servo ID: 5, Min Angle: 97.44, Max Angle: 225.12, Target Angle: 161.28
+Servo ID: 7, Min Angle: 8.16, Max Angle: 141.6, Target Angle: 74.88
