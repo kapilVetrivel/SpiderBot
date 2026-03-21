@@ -1,8 +1,8 @@
 {'servo_id': 1, 'min_angle': 12.92, 'max_angle': 127.0, 'home_angle': 70.0}
-{'servo_id': 2, 'min_angle': 5.96, 'max_angle': 155.08, 'home_angle': 5.96}
+{'servo_id': 2, 'min_angle': 5.96, 'max_angle': 155.08, 'home_angle': 6}
 {'servo_id': 3, 'min_angle': 124.04, 'max_angle': 228.04, 'home_angle': 176.0}
-{'servo_id': 4, 'min_angle': 8.36, 'max_angle': 157.72, 'home_angle': 8.36}
+{'servo_id': 4, 'min_angle': 8.36, 'max_angle': 157.72, 'home_angle': 8.4}
 {'servo_id': 5, 'min_angle': 118.76, 'max_angle': 225.16, 'home_angle': 172.0}
-{'servo_id': 6, 'min_angle': 5.24, 'max_angle': 151.48, 'home_angle': 5.24}
+{'servo_id': 6, 'min_angle': 5.24, 'max_angle': 151.48, 'home_angle': 5.4}
 {'servo_id': 7, 'min_angle': 11.48, 'max_angle': 123.16, 'home_angle': 67.3}
-{'servo_id': 8, 'min_angle': 5, 'max_angle': 147.16, 'home_angle': 5}
+{'servo_id': 8, 'min_angle': 5, 'max_angle': 147.16, 'home_angle': 5.1}

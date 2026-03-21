@@ -355,6 +355,8 @@ class SpiderBot:
                     time.sleep(0.25)
                     servo.disable_torque()
 
+            print("Disabled servo torque. Safe to pick up.")
+
 
 
     ###################################################################
