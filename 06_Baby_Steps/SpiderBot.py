@@ -32,6 +32,8 @@ class SpiderBot:
         self.no_of_servos_per_leg = 2
         self.no_of_servos = self.no_of_legs * self.no_of_servos_per_leg
 
+        self.angle_buffer = 5
+
         self.joint_to_servo = {
             "leg1_hip": [1, 110],
             "leg1_knee": [2, 40],
@@ -234,7 +236,7 @@ class SpiderBot:
                     servo.set_angle_limits(min_angle, max_angle)
                     servo.move(home_angle)
                     time.sleep(0.25)
-                    servo.disable_torque()
+                    
                 
 
             print("Servo limits imported successfully.\n")
@@ -251,7 +253,7 @@ class SpiderBot:
                 min_angle = 0
                 max_angle = 240
                 step = 10
-                time_delay = 0.5
+                time_delay = 0.25
 
                 servo.set_angle_limits(min_angle, max_angle)
                 print(f"Servo {servo_id} initial angle limits set to {min_angle} - {max_angle} degrees")
@@ -271,7 +273,7 @@ class SpiderBot:
 
                     if new_angle == current_angle:
                         print(f"Max limit: {current_angle}º", end=" ")
-                        max_angle = min(new_angle, 240)
+                        max_angle = min(new_angle, 240) - self.angle_buffer
                         break
                     current_angle = servo.get_physical_angle()
 
@@ -285,7 +287,7 @@ class SpiderBot:
 
                     if new_angle == current_angle:
                         print(f"Min limit: {current_angle}º")
-                        min_angle = max(new_angle, 0)
+                        min_angle = max(new_angle, 0) + self.angle_buffer
                         break
                     current_angle = servo.get_physical_angle()
 
@@ -294,7 +296,7 @@ class SpiderBot:
                 servo.set_angle_limits(min_angle, max_angle)
                 servo.move(home_angle)
                 time.sleep(0.5)
-                servo.disable_torque()
+                
 
                 # Record servo ID, min angle, max angle, and home angle in a list and save it to a file for later import
                 self.servo_info = {
@@ -304,8 +306,7 @@ class SpiderBot:
                     "home_angle": home_angle
                 }
 
-                # Save servo info to a file named "servo_limits_{timestamp}.txt" in the active folder.
-                
+                # Save servo info to a file named "servo_limits_{timestamp}.txt" in the active folder.                
                 with open(f"servo_limits_{self.timestamp}.txt", "a") as f:
                     f.write(str(self.servo_info) + "\n")
 
@@ -313,11 +314,48 @@ class SpiderBot:
     # Enter the motion window where you can implement the main control loop for the robot's movements.
     @catch_disconnection
     def enter_motion_window(self):
-        while self.boot_completed:
-            self.clear_console()
-            self.print_entry_banner()
-            print("Motion Window (Ctrl+C to exit)")
-            time.sleep(1)
+        try:
+            while self.boot_completed:
+                self.clear_console()
+                self.print_entry_banner()
+                print("Motion Window (Ctrl+C to shut down)")
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\nShutting down...")
+            self.shutdown()
+            self.reset_connection_state()
+            print("\n\n#####################################################################")
+            print("######################## END ########################################")
+            print("#####################################################################\n")
+            exit(0)
+
+    ###################################################################
+    # Shut down the robot by moving all servos to their safe positions and disabling torque. 
+    # This is important to ensure that the robot is in a safe state when it is turned off, which can help prevent damage to the servos and the robot itself.
+    # safe positions read from servo_shutdown_positions.txt file if it exists, otherwise defaults to the home position defined in the servo_limits file.
+    @catch_disconnection
+    def shutdown(self):
+
+        # Check if servo_limits file already exists and import limits from there if it does, otherwise perform the sweep and save the limits to a new file. This allows us to avoid having to sweep the servos every time we start the robot, which can save time and reduce wear on the servos.
+        existing_files = [f for f in os.listdir() if f.startswith("servo_shutdown_") and f.endswith(".txt")]
+        if existing_files:
+            latest_file = max(existing_files, key=os.path.getctime)
+            print(f"Found existing servo shutdown file: {latest_file}. Importing shutdown positions from there...")
+            with open(latest_file, "r") as f:
+                for line in f:
+                    servo_info = eval(line.strip())
+                    servo_id = servo_info["servo_id"]
+                    min_angle = servo_info["min_angle"]
+                    max_angle = servo_info["max_angle"]
+                    home_angle = servo_info["home_angle"]
+
+                    servo = LX16A(servo_id)
+                    servo.set_angle_limits(min_angle, max_angle)
+                    servo.move(home_angle)
+                    time.sleep(0.25)
+                    servo.disable_torque()
+
+
 
     ###################################################################
     # Run the spider bot main loop.
@@ -383,12 +421,11 @@ def main():
         SpiderBot()
     except KeyboardInterrupt:
         print("\nInterrupted by user. Exiting...")
+
     except Exception as exc:
         print(f"Error initializing robot: {exc}")
 
-    print("\n\n#####################################################################")
-    print("######################## END ########################################")
-    print("#####################################################################\n")
+    
 
 
 if __name__ == "__main__":
