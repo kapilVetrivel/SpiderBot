@@ -183,7 +183,6 @@ class SpiderBot:
         self.initial_pos_read = True
 
     def enter_motion_window(self):
-        self.boot_completed = True
         while self.boot_completed:
             self.clear_console()
             self.print_banner()
@@ -209,6 +208,7 @@ class SpiderBot:
 
                 if not self.initial_pos_read and self.connected_servo_ids:
                     self.read_initial_positions()
+                    self.boot_completed = True
 
                 print("\n--> Boot routine completed. Entering motion window.")
                 input("--> Press Enter to continue (Homing)...")
