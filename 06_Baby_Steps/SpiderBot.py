@@ -1,6 +1,9 @@
 import os
 import time
 from typing import List, Optional
+from zipfile import Path
+from pathlib import Path
+
 
 import serial.tools.list_ports
 from pylx16a.lx16a import LX16A, ServoTimeoutError
@@ -27,7 +30,7 @@ class SpiderBot:
 
         self.no_of_legs = 4
         self.no_of_servos_per_leg = 2
-        self.no_of_servos = self.no_of_legs * self.no_of_servos_per_leg +1
+        self.no_of_servos = self.no_of_legs * self.no_of_servos_per_leg
 
         self.joint_to_servo = {
             "leg1_hip": [1, 110],
@@ -109,7 +112,7 @@ class SpiderBot:
     # Initialize the LX16A library with the selected port and a short timeout. This will be used for all subsequent communication with the servos.
     @catch_disconnection
     def initialize_lx16a(self):
-        LX16A.initialize(self.selected_port, 0.1)
+        LX16A.initialize(self.selected_port, 0.1) if self.selected_port else None
         self.initialize_status = "Initialized"
         print("LX16A serial connection initialized successfully.\n")
 
@@ -210,8 +213,101 @@ class SpiderBot:
     # This is important to ensure that the servos do not try to move beyond their physical
     @catch_disconnection
     def sweep_and_home_servos(self):
-        # get datetime stamp for file naming
-        self.timestamp = time.strftime("%Y%m%d-%H%M%S")
+
+        self.active_folder = Path(__file__).parent.resolve()
+        os.chdir(self.active_folder)
+        
+        # Check if servo_limits file already exists and import limits from there if it does, otherwise perform the sweep and save the limits to a new file. This allows us to avoid having to sweep the servos every time we start the robot, which can save time and reduce wear on the servos.
+        existing_files = [f for f in os.listdir() if f.startswith("servo_limits_") and f.endswith(".txt")]
+        if existing_files:
+            latest_file = max(existing_files, key=os.path.getctime)
+            print(f"Found existing servo limits file: {latest_file}. Importing limits from there...")
+            with open(latest_file, "r") as f:
+                for line in f:
+                    servo_info = eval(line.strip())
+                    servo_id = servo_info["servo_id"]
+                    min_angle = servo_info["min_angle"]
+                    max_angle = servo_info["max_angle"]
+                    home_angle = servo_info["home_angle"]
+
+                    servo = LX16A(servo_id)
+                    servo.set_angle_limits(min_angle, max_angle)
+                    servo.move(home_angle)
+                    time.sleep(0.25)
+                    servo.disable_torque()
+                
+
+            print("Servo limits imported successfully.\n")
+            return
+        else:
+            print("No existing servo limits file found. Starting sweep to find limits...\n")
+
+            # get datetime stamp for file naming
+            self.timestamp = time.strftime("%Y%m%d-%H%M%S")
+
+            for servo_id in self.connected_servo_ids:
+                servo = LX16A(servo_id)
+
+                min_angle = 0
+                max_angle = 240
+                step = 10
+                time_delay = 0.5
+
+                servo.set_angle_limits(min_angle, max_angle)
+                print(f"Servo {servo_id} initial angle limits set to {min_angle} - {max_angle} degrees")
+
+                initial_angle = servo.get_physical_angle() # Read current position to ensure communication is working
+                print(f"Initial position of Servo {servo_id}: {initial_angle} degrees. Sweeping to find limits...", end=" ")
+
+                current_angle = initial_angle
+
+                # Find max. angle
+                while True:
+                    servo.move(240) # Ensure we don't command the servo to move above 240 degrees
+                    time.sleep(time_delay) # Wait for the servo to move and stabilize
+
+                    new_angle = servo.get_physical_angle()
+                    # print(f"Servo {servo_id} moved from {current_angle} to {new_angle} degrees")
+
+                    if new_angle == current_angle:
+                        print(f"Max limit: {current_angle}º", end=" ")
+                        max_angle = min(new_angle, 240)
+                        break
+                    current_angle = servo.get_physical_angle()
+
+                # Find min. angle
+                while True:
+                    servo.move(0) # Ensure we don't command the servo to move below 0 degrees
+                    time.sleep(time_delay) # Wait for the servo to move and stabilize
+
+                    new_angle = servo.get_physical_angle()
+                    # print(f"Servo {servo_id} moved from {current_angle} to {new_angle} degrees")
+
+                    if new_angle == current_angle:
+                        print(f"Min limit: {current_angle}º")
+                        min_angle = max(new_angle, 0)
+                        break
+                    current_angle = servo.get_physical_angle()
+
+                # move to home target angle
+                home_angle = round(min_angle + (max_angle - min_angle) / 2,1)
+                servo.set_angle_limits(min_angle, max_angle)
+                servo.move(home_angle)
+                time.sleep(0.5)
+                servo.disable_torque()
+
+                # Record servo ID, min angle, max angle, and home angle in a list and save it to a file for later import
+                self.servo_info = {
+                    "servo_id": servo_id,
+                    "min_angle": min_angle,
+                    "max_angle": max_angle,
+                    "home_angle": home_angle
+                }
+
+                # Save servo info to a file named "servo_limits_{timestamp}.txt" in the active folder.
+                
+                with open(f"servo_limits_{self.timestamp}.txt", "a") as f:
+                    f.write(str(self.servo_info) + "\n")
 
     ###################################################################
     # Enter the motion window where you can implement the main control loop for the robot's movements.
@@ -219,7 +315,7 @@ class SpiderBot:
     def enter_motion_window(self):
         while self.boot_completed:
             self.clear_console()
-            self.print_banner()
+            self.print_entry_banner()
             print("Motion Window (Ctrl+C to exit)")
             time.sleep(1)
 
@@ -249,6 +345,8 @@ class SpiderBot:
 
                 if not self.initial_pos_read and self.connected_servo_ids:
                     self.read_initial_positions()
+
+                self.sweep_and_home_servos()
                 
                 # Verify all boot steps are completed before entering the motion window
                 if (self.selected_port is not None and
