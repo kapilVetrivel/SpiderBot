@@ -5,7 +5,8 @@ from typing import List, Optional
 import serial.tools.list_ports
 from pylx16a.lx16a import LX16A, ServoTimeoutError
 
-
+###################################################################
+# Connection error handling decorator to catch exceptions in serial communication and reset connection state
 def catch_disconnection(func):
     def wrapper(self, *args, **kwargs):
         try:
@@ -26,7 +27,7 @@ class SpiderBot:
 
         self.no_of_legs = 4
         self.no_of_servos_per_leg = 2
-        self.no_of_servos = self.no_of_legs * self.no_of_servos_per_leg
+        self.no_of_servos = self.no_of_legs * self.no_of_servos_per_leg +1
 
         self.joint_to_servo = {
             "leg1_hip": [1, 110],
@@ -55,19 +56,21 @@ class SpiderBot:
         self.connected_servo_ids: List[int] = []
         self.initial_pos_read = False
         self.boot_completed = False
+        self.boot_count = 1
 
         self.clear_console()
-        self.print_banner()
         self.run_spider_bot()
 
     def clear_console(self):
         os.system("cls" if os.name == "nt" else "clear")
 
-    def print_banner(self):
+    def print_entry_banner(self):
         print("#####################################################################")
         print("######################## SPIDER BOT #################################")
         print("#####################################################################\n")
 
+    #####################################################################
+    # Reset connection state to allow for reinitialization in case of errors
     def reset_connection_state(self):
         self.count_scan_for_ports = 1
         self.selected_port = None
@@ -76,6 +79,8 @@ class SpiderBot:
         self.initial_pos_read = False
         self.boot_completed = False
 
+    ###################################################################
+    # Scan for eligible ports and select the first one that matches the criteria (contains 'ttyUSB')
     @catch_disconnection
     def scan_for_ports(self):
         while self.selected_port is None:
@@ -100,12 +105,18 @@ class SpiderBot:
                     "No 'ttyUSB*' serial port found after multiple attempts."
                 )
 
+    ###################################################################
+    # Initialize the LX16A library with the selected port and a short timeout. This will be used for all subsequent communication with the servos.
     @catch_disconnection
     def initialize_lx16a(self):
         LX16A.initialize(self.selected_port, 0.1)
         self.initialize_status = "Initialized"
         print("LX16A serial connection initialized successfully.\n")
 
+    ###################################################################
+    # Scan for connected servos by trying to create an instance of the LX16A class for each possible servo ID. 
+    # If it succeeds, the servo is considered connected and its ID is added to the list. 
+    # If it fails (e.g., due to a timeout), it moves on to the next ID. This allows us to dynamically detect which servos are actually present and responsive.
     @catch_disconnection
     def get_servo_ids(self):
         self.connected_servo_ids = []
@@ -123,6 +134,8 @@ class SpiderBot:
             f"- {self.connected_servo_ids}\n"
         )
 
+    ###################################################################
+    # Set angle limits for a given servo ID. This is important to prevent the servos from trying to move beyond their physical limits, which could cause damage.
     @catch_disconnection
     def set_servo_limits(self, servo_id, lower_limit, upper_limit):
         servo = LX16A(servo_id)
@@ -132,11 +145,14 @@ class SpiderBot:
             f"Lower={lower_limit}, Upper={upper_limit}"
         )
 
+    ###################################################################
+    # Read the current position of a servo by its ID. 
+    # The output parameter allows us to print the position if desired.
     @catch_disconnection
     def read_servo_position(self, servo_id, output=False):
         try:
             servo = LX16A(servo_id)
-            position = servo.get_physical_angle()
+            position = round(servo.get_physical_angle(),1)
             if output:
                 print(f"Servo {servo_id} position: {position} degrees")
             time.sleep(0.2)
@@ -145,6 +161,8 @@ class SpiderBot:
             print(f"Failed to read position for Servo {servo_id}: {exc}")
             return None
 
+    ###################################################################
+    # Enable or disable torque for a given servo ID.
     @catch_disconnection
     def servo_torque(self, servo_id, enabled=False, output=False):
         try:
@@ -164,6 +182,8 @@ class SpiderBot:
             print(f"Failed to change torque for Servo {servo_id}: {exc}")
             return None
 
+    ###################################################################
+    # Move a servo to a specified position. 
     @catch_disconnection
     def move_servo(self, servo_id, position):
         try:
@@ -175,6 +195,9 @@ class SpiderBot:
         except Exception as exc:
             print(f"Failed to move Servo {servo_id} to position {position}: {exc}")
 
+        
+    # Read the initial positions of all connected servos.
+    @catch_disconnection
     def read_initial_positions(self):
         print("Reading initial servo positions...")
         for servo_id in self.connected_servo_ids:
@@ -182,6 +205,17 @@ class SpiderBot:
             self.servo_torque(servo_id, enabled=False)
         self.initial_pos_read = True
 
+    ###################################################################
+    # Sweep and homing function to find the physical limits of each servo and set them as the new angle limits. 
+    # This is important to ensure that the servos do not try to move beyond their physical
+    @catch_disconnection
+    def sweep_and_home_servos(self):
+        # get datetime stamp for file naming
+        self.timestamp = time.strftime("%Y%m%d-%H%M%S")
+
+    ###################################################################
+    # Enter the motion window where you can implement the main control loop for the robot's movements.
+    @catch_disconnection
     def enter_motion_window(self):
         while self.boot_completed:
             self.clear_console()
@@ -189,11 +223,18 @@ class SpiderBot:
             print("Motion Window (Ctrl+C to exit)")
             time.sleep(1)
 
+    ###################################################################
+    # Run the spider bot main loop.
+    @catch_disconnection
     def run_spider_bot(self):
-        print("Starting boot routine (Ctrl+C to exit)")
-        print("======================================")
+        
 
         while True:
+            os.system("cls" if os.name == "nt" else "clear")
+            self.print_entry_banner()
+            print("Starting boot routine (Ctrl+C to exit)")
+            print("======================================")
+
             try:
                 if self.selected_port is None:
                     self.scan_for_ports()
@@ -208,13 +249,28 @@ class SpiderBot:
 
                 if not self.initial_pos_read and self.connected_servo_ids:
                     self.read_initial_positions()
+                
+                # Verify all boot steps are completed before entering the motion window
+                if (self.selected_port is not None and
+                    self.initialize_status == "Initialized" and
+                    len(self.connected_servo_ids) == self.no_of_servos and
+                    self.initial_pos_read):
                     self.boot_completed = True
 
-                print("\n--> Boot routine completed. Entering motion window.")
-                input("--> Press Enter to continue (Homing)...")
+                if self.boot_completed:                    
+                    print("\n--> Boot routine completed. Entering motion window.")
+                    input("--> Press Enter to continue ...")
 
-                self.enter_motion_window()
-                break
+                    self.enter_motion_window()
+
+                else:
+                    print(f"\n--> Boot routine not completed yet. Attempt boot routine {self.boot_count} of {self.time_out}...")
+                    self.reset_connection_state()
+                    self.boot_count += 1
+                    if self.boot_count > self.time_out:
+                        print("\n--> Boot routine failed after multiple attempts. Please check connections and restart.")
+                        break
+                    time.sleep(2)
 
             except KeyboardInterrupt:
                 raise
