@@ -4,6 +4,7 @@ from pylx16a.lx16a import LX16A, ServoTimeoutError, ServoError
 
 def main(serial_port, pos1, pos2, move_time):
     LX16A.initialize(serial_port)
+    move_time = max(move_time,500)
     
     # Initialize once
     servos = [None] + [LX16A(i) for i in range(1, 9)]
