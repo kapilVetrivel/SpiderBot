@@ -1,0 +1,7 @@
+{'servo_id': 2, 'min_angle': 13.4, 'max_angle': 153.64, 'home_angle': 83.5}
+{'servo_id': 3, 'min_angle': 100.52, 'max_angle': 226.84, 'home_angle': 163.7}
+{'servo_id': 4, 'min_angle': 17.48, 'max_angle': 154.12, 'home_angle': 85.8}
+{'servo_id': 5, 'min_angle': 95.48, 'max_angle': 223.48, 'home_angle': 159.5}
+{'servo_id': 6, 'min_angle': 15.56, 'max_angle': 147.88, 'home_angle': 81.7}
+{'servo_id': 7, 'min_angle': 15.8, 'max_angle': 143.32, 'home_angle': 79.6}
+{'servo_id': 8, 'min_angle': 15.56, 'max_angle': 143.08, 'home_angle': 79.3}

@@ -38,6 +38,7 @@ class SpiderBot:
         self.initialize_status = 0
         self.connected_servo_ids: List[int] = []
         self.initial_pos_read = False
+        self.homing_state = False
         self.boot_completed = False
         self.boot_count = 1
 
@@ -122,8 +123,8 @@ class SpiderBot:
                 self.servo_id = self.servo.get_id(poll_hardware=True)
                 self.connected_servo_ids.append(self.servo_id)
 
-            print(f"Detected {len(self.servos)-1} servos ! ")
-            print(f"Detected {len(self.servos)-1} servos ! {self.connected_servo_ids}") if self.verbose != 0 else None
+            # print(f"Detected {len(self.servos)-1} servos ! ")
+            print(f"Detected {len(self.servos)-1} servos ! {self.connected_servo_ids}" if self.verbose != 0 else f"Detected {len(self.servos)-1} servos ! ")
 
     ###################################################################
     # Servo Health Check
@@ -195,7 +196,7 @@ class SpiderBot:
             # Wait for duration
             time.sleep(time_ms/1000)
             
-            print(f"Moved servos {servo_ids}.") if self.verbose != 0 else None
+            print(f"--- --- --> Moved servos {servo_ids}.") if self.verbose != 0 else None
 
         except ServoError as e:
             print(f"Move failed on servo: {e.id_}: {e}")
@@ -205,40 +206,73 @@ class SpiderBot:
     @catch_disconnection
     @health_check
     def servo_homing(self,output=False):
-        print("--- ---> Servo Homing: ", end="")
+        print("--- --> Servo Homing: ", end="")
         self.homing_file = [f for f in os.listdir() if f.startswith("servo_limits_") and f.endswith(".txt")]
         
-        if self.homing_file:
-            print("No servo homing data available. Initiating homing sequence...")
+        if not self.homing_file:
+            print("No servo homing data available. Initiating homing sequence...", end="")
             self.timestamp = time.strftime("%Y%m%d-%H%M%S")
 
             pos_max = [None] + [240] * 9
             pos_min = [None] + [0] * 9
 
             for i, self.servo in enumerate(self.servos[1:], 1):
-                print(f"Homing servo: {i}")
-                # Set max. and min. angle limts to extreme values
-                self.servo.set_angle_limits(0, 240)
-                print(self.servo.get_angle_limits())
-                
-                # Find max. angle           
-                self.servo_move(pos_max, time_ms=1000,servo_ids=[i])
-                self.max_angle_limit = self.read_pos(servo_ids=[i])[0][1]
-                time.sleep(0.5)
+                if i != 1:
+                    print(f"Homing servo: {i}")
+                    # Set max. and min. angle limts to extreme values
+                    self.servo.set_angle_limits(0, 240)
+                    print(self.servo.get_angle_limits())
+                    
+                    # Find max. angle           
+                    self.servo_move(pos_max, time_ms=1000,servo_ids=[i])
+                    self.max_angle_limit = min(self.read_pos(servo_ids=[i])[0][1], 240) - self.angle_buffer
+                    time.sleep(0.5)
 
-                # Find min. angle
-                self.servo_move(pos_min, time_ms=1000,servo_ids=[i])
-                self.min_angle_limit = self.read_pos(servo_ids=[i])[0][1]
-                time.sleep(0.5)
+                    # Find min. angle
+                    self.servo_move(pos_min, time_ms=1000,servo_ids=[i])
+                    self.min_angle_limit = max(self.read_pos(servo_ids=[i])[0][1], 0) + self.angle_buffer
+                    time.sleep(0.5)
 
-                # # Move to Mid Position
-                self.home_angle = (self.max_angle_limit + self.min_angle_limit)/2
-                self.servo_move([None]+[self.home_angle] * 9, time_ms=500, servo_ids=[i])
-                self.servo.disable_torque()
+                    # # Move to Mid Position
+                    self.home_angle = round((self.max_angle_limit + self.min_angle_limit)/2,1)
+                    self.servo_move([None]+[self.home_angle] * 9, time_ms=1000, servo_ids=[i])
+                    self.servo.disable_torque()
+
+                    # Record servo ID, min angle, max angle, and home angle in a list and save it to a file for later import
+                    self.servo_info = {
+                        "servo_id": self.servo._id,
+                        "min_angle": self.min_angle_limit,
+                        "max_angle": self.max_angle_limit,
+                        "home_angle": self.home_angle
+                    }
+
+                    # Save servo info to a file named "servo_limits_{timestamp}.txt" in the active folder.                
+                    with open(f"servo_limits_{self.timestamp}.txt", "a") as f:
+                        f.write(str(self.servo_info) + "\n")
+
+            self.homing_state = True
+
         else:
             print("Homing from previous configuration - ", end="")
+            self.homing_file = max(self.homing_file, key=os.path.getctime)
 
+            with open(self.homing_file, "r") as f:
+                for line in f:
+                    self.servo_info = eval(line.strip())
+                    self.servo_id = self.servo_info["servo_id"]
+                    self.min_angle_limit = self.servo_info["min_angle"]
+                    self.max_angle_limit = self.servo_info["max_angle"]
+                    self.home_angle = self.servo_info["home_angle"]
+
+                    for i, self.servo in enumerate(self.servos[1:], 1):
+                        if i == self.servo_id:
+                            # # Move to Mid Position
+                            self.servo.enable_torque()
+                            self.servo.set_angle_limits(self.min_angle_limit, self.max_angle_limit)
+                            self.servo_move([None]+[self.home_angle] * 9, time_ms=500, servo_ids=[i])
+                            self.servo.disable_torque()
             print("Successful !")
+            self.homing_state = True
                 
 
             
@@ -263,11 +297,35 @@ class SpiderBot:
             self.detect_servos()
 
         # Get initial servo positions
+        print("--- --> Reading initial servo positions...")
         self.read_pos(output=True)
-
+        
         # Servo homing
-        self.servo_homing()
+        if not self.homing_state:
+            self.servo_homing()
 
+        if self.selected_port != None and self.initialize_status == 1 and self.homing_state == 1:
+            print("--> Boot Routine Completed Successfully !")
+            print("--> Initiating Motion Control...")
+            self.boot_completed = True
+            return None
+        else:
+            print("--> Boot Routine Failed ! Retrying...")
+            self.boot_count += 1
+            if self.boot_count > self.time_out:
+                print("--> Boot Routine Failed. Exiting...")
+                self.run_status = 0
+
+
+    ###################################################################
+    # Motion Control
+    @catch_disconnection
+    def motion_control(self):
+        self.clear_console()
+        self.entry_banner()
+        print("======== Motion Control Window ========")
+
+        
         
 
 
@@ -279,7 +337,9 @@ class SpiderBot:
         while self.run_status:
             try:
                 self.boot_routine()
-                time.sleep(10)
+                time.sleep(2)
+                self.motion_control() if self.boot_completed else None
+                time.sleep(5)
 
             except KeyboardInterrupt:
                 self.run_status = int(input("\nKeyboard Interruption: [Enter]-Continue or [0]-Exit ? :") or "1")
