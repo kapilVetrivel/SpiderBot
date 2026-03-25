@@ -50,6 +50,15 @@ class SpiderBot:
         self.run_status = 1
         self.run_spiderbot()
 
+    #####################################################################
+    # Reset connection state to allow for reinitialization in case of errors
+    def reset_connection_state(self):
+        self.count_scan_for_ports = 1
+        self.selected_port = None
+        self.initialize_status = 0
+        self.connected_servo_ids: List[int] = []
+        self.initial_pos_read = False
+        self.boot_completed = False
 
     ###################################################################
     # Clear terminal
@@ -217,7 +226,7 @@ class SpiderBot:
             pos_min = [None] + [0] * 9
 
             for i, self.servo in enumerate(self.servos[1:], 1):
-                if i != 1:
+                if True:
                     print(f"Homing servo: {i}")
                     # Set max. and min. angle limts to extreme values
                     self.servo.set_angle_limits(0, 240)
@@ -273,14 +282,7 @@ class SpiderBot:
                             self.servo.disable_torque()
             print("Successful !")
             self.homing_state = True
-                
-
-            
-
-
-
-
-        
+                    
     ###################################################################
     # Boot routine
     @catch_disconnection
@@ -321,12 +323,47 @@ class SpiderBot:
     # Motion Control
     @catch_disconnection
     def motion_control(self):
-        self.clear_console()
-        self.entry_banner()
-        print("======== Motion Control Window ========")
+        try:
+            while self.boot_completed:
+                self.clear_console()
+                self.entry_banner()
+                print("======== Motion Control Window (Ctrl + C to Shut Down) ========")
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\n--> Shutting down...")
+            self.shutdown()
+            self.reset_connection_state()
+            self.exit_banner()
+            exit(0)
+        
 
         
-        
+    ###################################################################
+    # Shut Down
+    @catch_disconnection
+    def shutdown(self):
+
+        # Check if servo_limits file already exists and import limits from it.
+        self.shutdown_files = [f for f in os.listdir() if f.startswith("servo_shutdown_") and f.endswith(".txt")]
+        if self.shutdown_files:
+            self.shutdown_file = max(self.shutdown_files, key=os.path.getctime)
+            print(f"Found existing servo shutdown file: {self.shutdown_file}. Importing shutdown positions from there...")
+            with open(self.shutdown_file, "r") as f:
+                for line in f:
+                    self.servo_info = eval(line.strip())
+                    self.servo_id = self.servo_info["servo_id"]
+                    self.min_angle_limit = self.servo_info["min_angle"]
+                    self.max_angle_limit = self.servo_info["max_angle"]
+                    self.home_angle = self.servo_info["home_angle"]
+
+                    for i, self.servo in enumerate(self.servos[1:], 1):
+                        if i == self.servo_id:
+                            # # Move to Mid Position
+                            self.servo.enable_torque()
+                            self.servo.set_angle_limits(self.min_angle_limit, self.max_angle_limit)
+                            self.servo_move([None]+[self.home_angle] * 9, time_ms=500, servo_ids=[i])
+                            self.servo.disable_torque()
+            print("Successful !")                   
 
 
     
