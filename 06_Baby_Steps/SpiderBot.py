@@ -187,12 +187,16 @@ class SpiderBot:
     ###################################################################
     # Servo Move
     @catch_disconnection
-    @health_check
-    def servo_move(self, pos, time_ms=1000, servo_ids=None, output=False):
+    # @health_check
+    def servo_move(self, pos, time_ms=1000, servo_ids=None, output=False, torque=True):
         try:
             # Use all servos if none specified
             self.target_servos = self.servos[1:] if servo_ids is None else [self.servos[i] for i in servo_ids]
 
+            # Enable torque
+            for self.servo in self.target_servos:
+                self.servo.enable_torque()
+                
             # Buffer moves for target servos only
             for self.servo in self.target_servos:
                 i = self.servo.get_id()
@@ -204,6 +208,10 @@ class SpiderBot:
 
             # Wait for duration
             time.sleep(time_ms/1000)
+
+            # Disable torque
+            for self.servo in self.target_servos:
+                self.servo.disable_torque() if not torque else None
             
             print(f"--- --- --> Moved servos {servo_ids}.") if self.verbose != 0 else None
 
@@ -227,25 +235,27 @@ class SpiderBot:
 
             for i, self.servo in enumerate(self.servos[1:], 1):
                 if True:
-                    print(f"Homing servo: {i}")
+                    print(f"Homing servo: {i}", end="")
                     # Set max. and min. angle limts to extreme values
                     self.servo.set_angle_limits(0, 240)
-                    print(self.servo.get_angle_limits())
+                    # print(self.servo.get_angle_limits())
                     
                     # Find max. angle           
-                    self.servo_move(pos_max, time_ms=1000,servo_ids=[i])
+                    self.servo_move(pos_max, time_ms=2000,servo_ids=[i])
                     self.max_angle_limit = min(self.read_pos(servo_ids=[i])[0][1], 240) - self.angle_buffer
                     time.sleep(0.5)
 
                     # Find min. angle
-                    self.servo_move(pos_min, time_ms=1000,servo_ids=[i])
+                    self.servo_move(pos_min, time_ms=2000,servo_ids=[i])
                     self.min_angle_limit = max(self.read_pos(servo_ids=[i])[0][1], 0) + self.angle_buffer
                     time.sleep(0.5)
 
                     # # Move to Mid Position
                     self.home_angle = round((self.max_angle_limit + self.min_angle_limit)/2,1)
+                    print([None]+[self.home_angle] * 9)
                     self.servo_move([None]+[self.home_angle] * 9, time_ms=1000, servo_ids=[i])
-                    self.servo.disable_torque()
+                    # self.servo.disable_torque()
+                    print("Done !")
 
                     # Record servo ID, min angle, max angle, and home angle in a list and save it to a file for later import
                     self.servo_info = {
@@ -265,21 +275,24 @@ class SpiderBot:
             print("Homing from previous configuration - ", end="")
             self.homing_file = max(self.homing_file, key=os.path.getctime)
 
+            self.servo_id = []
+            self.min_angle_limit = []
+            self.max_angle_limit = []
+            self.home_angle = []
             with open(self.homing_file, "r") as f:
                 for line in f:
                     self.servo_info = eval(line.strip())
-                    self.servo_id = self.servo_info["servo_id"]
-                    self.min_angle_limit = self.servo_info["min_angle"]
-                    self.max_angle_limit = self.servo_info["max_angle"]
-                    self.home_angle = self.servo_info["home_angle"]
+                    # self.servo_id = self.servo_info["servo_id"]
+                    # self.min_angle_limit = self.servo_info["min_angle"]
+                    # self.max_angle_limit = self.servo_info["max_angle"]
+                    # self.home_angle = self.servo_info["home_angle"]
 
-                    for i, self.servo in enumerate(self.servos[1:], 1):
-                        if i == self.servo_id:
-                            # # Move to Mid Position
-                            self.servo.enable_torque()
-                            self.servo.set_angle_limits(self.min_angle_limit, self.max_angle_limit)
-                            self.servo_move([None]+[self.home_angle] * 9, time_ms=500, servo_ids=[i])
-                            self.servo.disable_torque()
+                    self.servo_id.append(self.servo_info["servo_id"])
+                    # self.min_angle_limit.append(self.servo_info["min_angle"])
+                    # self.max_angle_limit.append(self.servo_info["max_angle"])
+                    self.home_angle.append(self.servo_info["home_angle"])
+
+            self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id)
             print("Successful !")
             self.homing_state = True
                     
@@ -347,23 +360,27 @@ class SpiderBot:
         self.shutdown_files = [f for f in os.listdir() if f.startswith("servo_shutdown_") and f.endswith(".txt")]
         if self.shutdown_files:
             self.shutdown_file = max(self.shutdown_files, key=os.path.getctime)
-            print(f"Found existing servo shutdown file: {self.shutdown_file}. Importing shutdown positions from there...")
+            print(f"Found existing servo shutdown file: {self.shutdown_file}. Importing shutdown positions from there...") if self.verbose != 0 else None
+            self.servo_id = []
+            self.min_angle_limit = []
+            self.max_angle_limit = []
+            self.home_angle = []
             with open(self.shutdown_file, "r") as f:
                 for line in f:
                     self.servo_info = eval(line.strip())
-                    self.servo_id = self.servo_info["servo_id"]
-                    self.min_angle_limit = self.servo_info["min_angle"]
-                    self.max_angle_limit = self.servo_info["max_angle"]
-                    self.home_angle = self.servo_info["home_angle"]
+                    # self.servo_id = self.servo_info["servo_id"]
+                    # self.min_angle_limit = self.servo_info["min_angle"]
+                    # self.max_angle_limit = self.servo_info["max_angle"]
+                    # self.home_angle = self.servo_info["home_angle"]
 
-                    for i, self.servo in enumerate(self.servos[1:], 1):
-                        if i == self.servo_id:
-                            # # Move to Mid Position
-                            self.servo.enable_torque()
-                            self.servo.set_angle_limits(self.min_angle_limit, self.max_angle_limit)
-                            self.servo_move([None]+[self.home_angle] * 9, time_ms=500, servo_ids=[i])
-                            self.servo.disable_torque()
-            print("Successful !")                   
+                    self.servo_id.append(self.servo_info["servo_id"])
+                    # self.min_angle_limit.append(self.servo_info["min_angle"])
+                    # self.max_angle_limit.append(self.servo_info["max_angle"])
+                    self.home_angle.append(self.servo_info["home_angle"])
+
+            self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id, torque=False)
+
+            print("Successful ! Torque disabled - Safe to pick up.")                   
 
 
     
@@ -382,14 +399,6 @@ class SpiderBot:
                 self.run_status = int(input("\nKeyboard Interruption: [Enter]-Continue or [0]-Exit ? :") or "1")
                 time.sleep(1)
             self.exit_banner()
-
-                
-                    
-            
-        
-
-
-
 
 
 ######################################################################################################################################
