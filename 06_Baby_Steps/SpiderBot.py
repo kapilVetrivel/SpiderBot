@@ -188,11 +188,15 @@ class SpiderBot:
     # Servo Move
     @catch_disconnection
     # @health_check
-    def servo_move(self, pos, time_ms=1000, servo_ids=None, output=False):
+    def servo_move(self, pos, time_ms=1000, servo_ids=None, output=False, torque=True):
         try:
             # Use all servos if none specified
             self.target_servos = self.servos[1:] if servo_ids is None else [self.servos[i] for i in servo_ids]
 
+            # Enable torque
+            for self.servo in self.target_servos:
+                self.servo.enable_torque()
+                
             # Buffer moves for target servos only
             for self.servo in self.target_servos:
                 i = self.servo.get_id()
@@ -204,6 +208,10 @@ class SpiderBot:
 
             # Wait for duration
             time.sleep(time_ms/1000)
+
+            # Disable torque
+            for self.servo in self.target_servos:
+                self.servo.disable_torque() if not torque else None
             
             print(f"--- --- --> Moved servos {servo_ids}.") if self.verbose != 0 else None
 
@@ -352,7 +360,7 @@ class SpiderBot:
         self.shutdown_files = [f for f in os.listdir() if f.startswith("servo_shutdown_") and f.endswith(".txt")]
         if self.shutdown_files:
             self.shutdown_file = max(self.shutdown_files, key=os.path.getctime)
-            print(f"Found existing servo shutdown file: {self.shutdown_file}. Importing shutdown positions from there...")
+            print(f"Found existing servo shutdown file: {self.shutdown_file}. Importing shutdown positions from there...") if self.verbose != 0 else None
             self.servo_id = []
             self.min_angle_limit = []
             self.max_angle_limit = []
@@ -370,9 +378,9 @@ class SpiderBot:
                     # self.max_angle_limit.append(self.servo_info["max_angle"])
                     self.home_angle.append(self.servo_info["home_angle"])
 
-            self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id)
+            self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id, torque=False)
 
-            print("Successful !")                   
+            print("Successful ! Torque disabled - Safe to pick up.")                   
 
 
     
