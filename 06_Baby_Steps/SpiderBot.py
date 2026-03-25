@@ -3,10 +3,8 @@ import time
 from typing import List, Optional
 from zipfile import Path
 from pathlib import Path
-
-
 import serial.tools.list_ports
-from pylx16a.lx16a import LX16A, ServoTimeoutError
+from pylx16a.lx16a import LX16A, ServoTimeoutError, ServoError
 
 ###################################################################
 # Connection error handling decorator to catch exceptions in serial communication and reset connection state
@@ -15,419 +13,401 @@ def catch_disconnection(func):
         try:
             return func(self, *args, **kwargs)
         except Exception as exc:
-            print(f"Connection error in {func.__name__}: {exc}")
-            self.reset_connection_state()
+            print(f"Connection error in [{func.__name__}]: {exc}")
             return None
 
     return wrapper
 
-
 class SpiderBot:
+    
     def __init__(self):
-        self.update_frequency = 0.1
         self.time_out = 5
         self.count_scan_for_ports = 1
+        self.update_freq = 0.5
+        self.verbose = 0
 
+        # SpiderBot Configuration
         self.no_of_legs = 4
         self.no_of_servos_per_leg = 2
         self.no_of_servos = self.no_of_legs * self.no_of_servos_per_leg
+        # Include buffer limit for servo movement
+        self.angle_buffer = 5 #degrees
 
-        self.angle_buffer = 5
-
-        self.joint_to_servo = {
-            "leg1_hip": [1, 110],
-            "leg1_knee": [2, 40],
-            "leg2_hip": [3, 140],
-            "leg2_knee": [4, 40],
-            "leg3_hip": [5, 140],
-            "leg3_knee": [6, 40],
-            "leg4_hip": [7, 110],
-            "leg4_knee": [8, 40],
-        }
-
-        self.servo_safe_positions = {
-            1: 110,
-            2: 40,
-            3: 140,
-            4: 40,
-            5: 140,
-            6: 40,
-            7: 110,
-            8: 40,
-        }
-
-        self.selected_port: Optional[str] = None
-        self.initialize_status = "Not initialized"
+        # Boot routine declarations
+        self.selected_port = None
+        self.initialize_status = 0
         self.connected_servo_ids: List[int] = []
         self.initial_pos_read = False
+        self.homing_state = False
         self.boot_completed = False
         self.boot_count = 1
 
-        self.clear_console()
-        self.run_spider_bot()
+        # Set path and active folder
+        self.active_folder = Path(__file__).parent.resolve()
+        os.chdir(self.active_folder)        
 
-    def clear_console(self):
-        os.system("cls" if os.name == "nt" else "clear")
-
-    def print_entry_banner(self):
-        print("#####################################################################")
-        print("######################## SPIDER BOT #################################")
-        print("#####################################################################\n")
+        # run Spider Bot
+        self.run_status = 1
+        self.run_spiderbot()
 
     #####################################################################
     # Reset connection state to allow for reinitialization in case of errors
     def reset_connection_state(self):
         self.count_scan_for_ports = 1
         self.selected_port = None
-        self.initialize_status = "Not initialized"
-        self.connected_servo_ids = []
+        self.initialize_status = 0
+        self.connected_servo_ids: List[int] = []
         self.initial_pos_read = False
         self.boot_completed = False
 
     ###################################################################
-    # Scan for eligible ports and select the first one that matches the criteria (contains 'ttyUSB')
+    # Clear terminal
     @catch_disconnection
-    def scan_for_ports(self):
-        while self.selected_port is None:
-            ports = serial.tools.list_ports.comports()
+    def clear_console(self):
+        os.system("cls" if os.name =="nt" else "clear")
 
-            for port in ports:
+    ###################################################################
+    # Entry Banner
+    @catch_disconnection
+    def entry_banner(self):
+        print("######################################################################")
+        print("######################## SPIDER BOT ##################################")
+        print("##################### Ctrl + C to exit ###############################")
+        print("######################################################################")
+
+    ###################################################################
+    # Exit Banner
+    @catch_disconnection
+    def exit_banner(self):
+        print("")
+        print("#####################################################################")
+        print("############################ END ####################################")
+        print("#####################################################################\n")
+
+
+    ###################################################################
+    # Scan Ports
+    @catch_disconnection
+    def scan_ports(self):
+        while True:
+            print("--- --> Scanning Serial Port...", end="")
+            for port in serial.tools.list_ports.comports():            
                 if "ttyUSB" in port.device:
                     self.selected_port = port.device
-                    print(f"Selected port: {self.selected_port}\n")
                     self.count_scan_for_ports = 1
+                    print("Detected! ")
+                    print(f"Detected ! {self.selected_port}") if self.verbose != 0 else None
                     return
-
             print(
-                f"No 'ttyUSB*' serial port found. Retrying "
+                f"No 'ttyUSB*' serial port(s) found. Retrying "
                 f"({self.count_scan_for_ports} of {self.time_out})..."
-            )
+                )
             self.count_scan_for_ports += 1
-            time.sleep(self.update_frequency)
+            time.sleep(self.update_freq)
 
             if self.count_scan_for_ports > self.time_out:
-                raise RuntimeError(
-                    "No 'ttyUSB*' serial port found after multiple attempts."
-                )
+                raise RuntimeError("No 'ttyUSB*' serial port found after multiple attempts.")                 
 
+    
     ###################################################################
-    # Initialize the LX16A library with the selected port and a short timeout. This will be used for all subsequent communication with the servos.
+    # Initialize Serial Port
     @catch_disconnection
     def initialize_lx16a(self):
+        print("--- --> Initializing Serial Port...", end="")
+
         LX16A.initialize(self.selected_port, 0.1) if self.selected_port else None
-        self.initialize_status = "Initialized"
-        print("LX16A serial connection initialized successfully.\n")
+        self.initialize_status = 1
+        print("Completed!")
+
 
     ###################################################################
-    # Scan for connected servos by trying to create an instance of the LX16A class for each possible servo ID. 
-    # If it succeeds, the servo is considered connected and its ID is added to the list. 
-    # If it fails (e.g., due to a timeout), it moves on to the next ID. This allows us to dynamically detect which servos are actually present and responsive.
+    # Detect Servos on serial port
     @catch_disconnection
-    def get_servo_ids(self):
-        self.connected_servo_ids = []
+    def detect_servos(self):
+        print("--- --> Identifying Servos...", end="")
+        self.servos = [None] + [LX16A(i) for i in range(1, 9)]
+        if len(self.servos) > 1:
 
-        for servo_id in range(1, 10):
+            for self.servo in self.servos[1:]:
+                self.servo_id = self.servo.get_id(poll_hardware=True)
+                self.connected_servo_ids.append(self.servo_id)
+
+            # print(f"Detected {len(self.servos)-1} servos ! ")
+            print(f"Detected {len(self.servos)-1} servos ! {self.connected_servo_ids}" if self.verbose != 0 else f"Detected {len(self.servos)-1} servos ! ")
+
+    ###################################################################
+    # Servo Health Check
+    def health_check(func):
+        def health_wrapper(self, *args, **kwargs):
+            servo_ids = kwargs.get('servo_ids')
+            if servo_ids:  # Quick check for specific servos only
+                for sid in servo_ids:
+                    try:
+                        servo = self.servos[sid]
+                        vin = servo.get_vin()
+                        temp = servo.get_temp()
+                        if temp > 80 or vin < 6000:
+                            print(f"WARN Servo {sid}: Temp {temp}°C Vin {vin}mV")
+                    except:
+                        pass
+            else:  # Full check only when no servo_ids
+                for servo in self.servos[1:]:
+                    try:
+                        vin = servo.get_vin()
+                        temp = servo.get_temp()
+                        temp = servo.get_temp()
+                        if temp > 80 or vin < 6000:
+                            print(f"WARN Servo {servo._id}: Temp {temp}°C Vin {vin}mV")
+                    except:
+                        pass
+            return func(self, *args, **kwargs)
+        return health_wrapper
+
+        
+    ###################################################################
+    # Read Servo Position
+    @catch_disconnection
+    @health_check
+    def read_pos(self, servo_ids=None, output=False):
+     
+        # Use all servos if none specified
+        self.target_servos = self.servos[1:] if servo_ids is None else [self.servos[i] for i in servo_ids]
+        self.positions = []
+        for self.servo in self.target_servos:
+            i = self.servo._id
             try:
-                LX16A(servo_id)
-                self.connected_servo_ids.append(servo_id)
-            except ServoTimeoutError:
-                continue
-
-        print(
-            f"Total servo IDs connected: "
-            f"{len(self.connected_servo_ids)}/{self.no_of_servos} "
-            f"- {self.connected_servo_ids}\n"
-        )
+                self.pos = self.servo.get_physical_angle()
+                self.positions.append([i, self.pos])
+                print(f"--- --- --> Servo {i} : {self.pos}º") if self.verbose != 0 or output else None
+            except Exception as e:
+                print(f"Failed to read servo {i}: {e}")
+                self.positions.append([i, None])
+        return self.positions
 
     ###################################################################
-    # Set angle limits for a given servo ID. This is important to prevent the servos from trying to move beyond their physical limits, which could cause damage.
+    # Servo Move
     @catch_disconnection
-    def set_servo_limits(self, servo_id, lower_limit, upper_limit):
-        servo = LX16A(servo_id)
-        servo.set_angle_limits(lower_limit, upper_limit)
-        print(
-            f"Set limits for Servo {servo_id}: "
-            f"Lower={lower_limit}, Upper={upper_limit}"
-        )
-
-    ###################################################################
-    # Read the current position of a servo by its ID. 
-    # The output parameter allows us to print the position if desired.
-    @catch_disconnection
-    def read_servo_position(self, servo_id, output=False):
+    # @health_check
+    def servo_move(self, pos, time_ms=1000, servo_ids=None, output=False):
         try:
-            servo = LX16A(servo_id)
-            position = round(servo.get_physical_angle(),1)
-            if output:
-                print(f"Servo {servo_id} position: {position} degrees")
-            time.sleep(0.2)
-            return position
-        except Exception as exc:
-            print(f"Failed to read position for Servo {servo_id}: {exc}")
-            return None
+            # Use all servos if none specified
+            self.target_servos = self.servos[1:] if servo_ids is None else [self.servos[i] for i in servo_ids]
 
+            # Buffer moves for target servos only
+            for self.servo in self.target_servos:
+                i = self.servo.get_id()
+                self.servo.move(pos[i], time_ms, wait=True)
+
+            # Sync start for target servos only
+            for self.servo in self.target_servos:
+                self.servo.move_start()
+
+            # Wait for duration
+            time.sleep(time_ms/1000)
+            
+            print(f"--- --- --> Moved servos {servo_ids}.") if self.verbose != 0 else None
+
+        except ServoError as e:
+            print(f"Move failed on servo: {e.id_}: {e}")
+    
     ###################################################################
-    # Enable or disable torque for a given servo ID.
+    # Servo Homing
     @catch_disconnection
-    def servo_torque(self, servo_id, enabled=False, output=False):
-        try:
-            servo = LX16A(servo_id)
-            if enabled:
-                servo.enable_torque()
-                if output:
-                    print(f"Torque enabled for Servo {servo_id}.")
-            else:
-                servo.disable_torque()
-                if output:
-                    print(
-                        f"Torque disabled for Servo {servo_id}. "
-                        "You can now manually move the servo."
-                    )
-        except Exception as exc:
-            print(f"Failed to change torque for Servo {servo_id}: {exc}")
-            return None
-
-    ###################################################################
-    # Move a servo to a specified position. 
-    @catch_disconnection
-    def move_servo(self, servo_id, position):
-        try:
-            servo = LX16A(servo_id)
-            servo.move(position)
-            current_position = self.read_servo_position(servo_id, output=False)
-            print(f"Moving Servo {servo_id} to position: {current_position} degrees")
-            time.sleep(0.5)
-        except Exception as exc:
-            print(f"Failed to move Servo {servo_id} to position {position}: {exc}")
-
+    @health_check
+    def servo_homing(self,output=False):
+        print("--- --> Servo Homing: ", end="")
+        self.homing_file = [f for f in os.listdir() if f.startswith("servo_limits_") and f.endswith(".txt")]
         
-    # Read the initial positions of all connected servos.
-    @catch_disconnection
-    def read_initial_positions(self):
-        print("Reading initial servo positions...")
-        for servo_id in self.connected_servo_ids:
-            self.read_servo_position(servo_id, output=True)
-            self.servo_torque(servo_id, enabled=False)
-        self.initial_pos_read = True
-
-    ###################################################################
-    # Sweep and homing function to find the physical limits of each servo and set them as the new angle limits. 
-    # This is important to ensure that the servos do not try to move beyond their physical
-    @catch_disconnection
-    def sweep_and_home_servos(self):
-
-        self.active_folder = Path(__file__).parent.resolve()
-        os.chdir(self.active_folder)
-        
-        # Check if servo_limits file already exists and import limits from there if it does, otherwise perform the sweep and save the limits to a new file. This allows us to avoid having to sweep the servos every time we start the robot, which can save time and reduce wear on the servos.
-        existing_files = [f for f in os.listdir() if f.startswith("servo_limits_") and f.endswith(".txt")]
-        if existing_files:
-            latest_file = max(existing_files, key=os.path.getctime)
-            print(f"Found existing servo limits file: {latest_file}. Importing limits from there...")
-            with open(latest_file, "r") as f:
-                for line in f:
-                    servo_info = eval(line.strip())
-                    servo_id = servo_info["servo_id"]
-                    min_angle = servo_info["min_angle"]
-                    max_angle = servo_info["max_angle"]
-                    home_angle = servo_info["home_angle"]
-
-                    servo = LX16A(servo_id)
-                    servo.set_angle_limits(min_angle, max_angle)
-                    servo.move(home_angle)
-                    time.sleep(0.25)        
-                
-
-            print("Servo limits imported successfully.\n")
-            return
-        else:
-            print("No existing servo limits file found. Starting sweep to find limits...\n")
-
-            # get datetime stamp for file naming
+        if not self.homing_file:
+            print("No servo homing data available. Initiating homing sequence...", end="")
             self.timestamp = time.strftime("%Y%m%d-%H%M%S")
 
-            for servo_id in self.connected_servo_ids:
-                servo = LX16A(servo_id)
+            pos_max = [None] + [240] * 9
+            pos_min = [None] + [0] * 9
 
-                min_angle = 0
-                max_angle = 240
-                step = 10
-                time_delay = 0.25
+            for i, self.servo in enumerate(self.servos[1:], 1):
+                if True:
+                    print(f"Homing servo: {i}", end="")
+                    # Set max. and min. angle limts to extreme values
+                    self.servo.set_angle_limits(0, 240)
+                    # print(self.servo.get_angle_limits())
+                    
+                    # Find max. angle           
+                    self.servo_move(pos_max, time_ms=2000,servo_ids=[i])
+                    self.max_angle_limit = min(self.read_pos(servo_ids=[i])[0][1], 240) - self.angle_buffer
+                    time.sleep(0.5)
 
-                servo.set_angle_limits(min_angle, max_angle)
-                print(f"Servo {servo_id} initial angle limits set to {min_angle} - {max_angle} degrees")
+                    # Find min. angle
+                    self.servo_move(pos_min, time_ms=2000,servo_ids=[i])
+                    self.min_angle_limit = max(self.read_pos(servo_ids=[i])[0][1], 0) + self.angle_buffer
+                    time.sleep(0.5)
 
-                initial_angle = servo.get_physical_angle() # Read current position to ensure communication is working
-                print(f"Initial position of Servo {servo_id}: {initial_angle} degrees. Sweeping to find limits...", end=" ")
+                    # # Move to Mid Position
+                    self.home_angle = round((self.max_angle_limit + self.min_angle_limit)/2,1)
+                    print([None]+[self.home_angle] * 9)
+                    self.servo_move([None]+[self.home_angle] * 9, time_ms=1000, servo_ids=[i])
+                    # self.servo.disable_torque()
+                    print("Done !")
 
-                current_angle = initial_angle
+                    # Record servo ID, min angle, max angle, and home angle in a list and save it to a file for later import
+                    self.servo_info = {
+                        "servo_id": self.servo._id,
+                        "min_angle": self.min_angle_limit,
+                        "max_angle": self.max_angle_limit,
+                        "home_angle": self.home_angle
+                    }
 
-                # Find max. angle
-                while True:
-                    servo.move(240) # Ensure we don't command the servo to move above 240 degrees
-                    time.sleep(time_delay) # Wait for the servo to move and stabilize
+                    # Save servo info to a file named "servo_limits_{timestamp}.txt" in the active folder.                
+                    with open(f"servo_limits_{self.timestamp}.txt", "a") as f:
+                        f.write(str(self.servo_info) + "\n")
 
-                    new_angle = servo.get_physical_angle()
-                    # print(f"Servo {servo_id} moved from {current_angle} to {new_angle} degrees")
+            self.homing_state = True
 
-                    if new_angle == current_angle:
-                        print(f"Max limit: {current_angle}º", end=" ")
-                        max_angle = min(new_angle, 240) - self.angle_buffer
-                        break
-                    current_angle = servo.get_physical_angle()
+        else:
+            print("Homing from previous configuration - ", end="")
+            self.homing_file = max(self.homing_file, key=os.path.getctime)
 
-                # Find min. angle
-                while True:
-                    servo.move(0) # Ensure we don't command the servo to move below 0 degrees
-                    time.sleep(time_delay) # Wait for the servo to move and stabilize
+            self.servo_id = []
+            self.min_angle_limit = []
+            self.max_angle_limit = []
+            self.home_angle = []
+            with open(self.homing_file, "r") as f:
+                for line in f:
+                    self.servo_info = eval(line.strip())
+                    # self.servo_id = self.servo_info["servo_id"]
+                    # self.min_angle_limit = self.servo_info["min_angle"]
+                    # self.max_angle_limit = self.servo_info["max_angle"]
+                    # self.home_angle = self.servo_info["home_angle"]
 
-                    new_angle = servo.get_physical_angle()
-                    # print(f"Servo {servo_id} moved from {current_angle} to {new_angle} degrees")
+                    self.servo_id.append(self.servo_info["servo_id"])
+                    # self.min_angle_limit.append(self.servo_info["min_angle"])
+                    # self.max_angle_limit.append(self.servo_info["max_angle"])
+                    self.home_angle.append(self.servo_info["home_angle"])
 
-                    if new_angle == current_angle:
-                        print(f"Min limit: {current_angle}º")
-                        min_angle = max(new_angle, 0) + self.angle_buffer
-                        break
-                    current_angle = servo.get_physical_angle()
+            self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id)
+            print("Successful !")
+            self.homing_state = True
+                    
+    ###################################################################
+    # Boot routine
+    @catch_disconnection
+    def boot_routine(self):
+        self.clear_console()
+        self.entry_banner()
+        print("--> Starting Boot Routine...")
 
-                # move to home target angle
-                home_angle = round(min_angle + (max_angle - min_angle) / 2,1)
-                servo.set_angle_limits(min_angle, max_angle)
-                servo.move(home_angle)
-                time.sleep(0.5)
-                
+        if self.selected_port == None:
+            self.scan_ports()
+        if self.initialize_status == 0:
+            self.initialize_lx16a()
+        if not self.connected_servo_ids:
+            self.detect_servos()
 
-                # Record servo ID, min angle, max angle, and home angle in a list and save it to a file for later import
-                self.servo_info = {
-                    "servo_id": servo_id,
-                    "min_angle": min_angle,
-                    "max_angle": max_angle,
-                    "home_angle": home_angle
-                }
+        # Get initial servo positions
+        print("--- --> Reading initial servo positions...")
+        self.read_pos(output=True)
+        
+        # Servo homing
+        if not self.homing_state:
+            self.servo_homing()
 
-                # Save servo info to a file named "servo_limits_{timestamp}.txt" in the active folder.                
-                with open(f"servo_limits_{self.timestamp}.txt", "a") as f:
-                    f.write(str(self.servo_info) + "\n")
+        if self.selected_port != None and self.initialize_status == 1 and self.homing_state == 1:
+            print("--> Boot Routine Completed Successfully !")
+            print("--> Initiating Motion Control...")
+            self.boot_completed = True
+            return None
+        else:
+            print("--> Boot Routine Failed ! Retrying...")
+            self.boot_count += 1
+            if self.boot_count > self.time_out:
+                print("--> Boot Routine Failed. Exiting...")
+                self.run_status = 0
+
 
     ###################################################################
-    # Enter the motion window where you can implement the main control loop for the robot's movements.
+    # Motion Control
     @catch_disconnection
-    def enter_motion_window(self):
+    def motion_control(self):
         try:
             while self.boot_completed:
                 self.clear_console()
-                self.print_entry_banner()
-                print("Motion Window (Ctrl+C to shut down)")
+                self.entry_banner()
+                print("======== Motion Control Window (Ctrl + C to Shut Down) ========")
                 time.sleep(1)
         except KeyboardInterrupt:
-            print("\nShutting down...")
+            print("\n--> Shutting down...")
             self.shutdown()
             self.reset_connection_state()
-            print("\n\n#####################################################################")
-            print("######################## END ########################################")
-            print("#####################################################################\n")
+            self.exit_banner()
             exit(0)
+        
 
+        
     ###################################################################
-    # Shut down the robot by moving all servos to their safe positions and disabling torque. 
-    # This is important to ensure that the robot is in a safe state when it is turned off, which can help prevent damage to the servos and the robot itself.
-    # safe positions read from servo_shutdown_positions.txt file if it exists, otherwise defaults to the home position defined in the servo_limits file.
+    # Shut Down
     @catch_disconnection
     def shutdown(self):
 
-        # Check if servo_limits file already exists and import limits from there if it does, otherwise perform the sweep and save the limits to a new file. This allows us to avoid having to sweep the servos every time we start the robot, which can save time and reduce wear on the servos.
-        existing_files = [f for f in os.listdir() if f.startswith("servo_shutdown_") and f.endswith(".txt")]
-        if existing_files:
-            latest_file = max(existing_files, key=os.path.getctime)
-            print(f"Found existing servo shutdown file: {latest_file}. Importing shutdown positions from there...")
-            with open(latest_file, "r") as f:
+        # Check if servo_limits file already exists and import limits from it.
+        self.shutdown_files = [f for f in os.listdir() if f.startswith("servo_shutdown_") and f.endswith(".txt")]
+        if self.shutdown_files:
+            self.shutdown_file = max(self.shutdown_files, key=os.path.getctime)
+            print(f"Found existing servo shutdown file: {self.shutdown_file}. Importing shutdown positions from there...")
+            self.servo_id = []
+            self.min_angle_limit = []
+            self.max_angle_limit = []
+            self.home_angle = []
+            with open(self.shutdown_file, "r") as f:
                 for line in f:
-                    servo_info = eval(line.strip())
-                    servo_id = servo_info["servo_id"]
-                    min_angle = servo_info["min_angle"]
-                    max_angle = servo_info["max_angle"]
-                    home_angle = servo_info["home_angle"]
+                    self.servo_info = eval(line.strip())
+                    # self.servo_id = self.servo_info["servo_id"]
+                    # self.min_angle_limit = self.servo_info["min_angle"]
+                    # self.max_angle_limit = self.servo_info["max_angle"]
+                    # self.home_angle = self.servo_info["home_angle"]
 
-                    servo = LX16A(servo_id)
-                    servo.set_angle_limits(min_angle, max_angle)
-                    servo.move(home_angle)
-                    time.sleep(0.25)
-                    servo.disable_torque()
+                    self.servo_id.append(self.servo_info["servo_id"])
+                    # self.min_angle_limit.append(self.servo_info["min_angle"])
+                    # self.max_angle_limit.append(self.servo_info["max_angle"])
+                    self.home_angle.append(self.servo_info["home_angle"])
 
-            print("Disabled servo torque. Safe to pick up.")
+            self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id)
+
+            print("Successful !")                   
 
 
-
+    
     ###################################################################
-    # Run the spider bot main loop.
+    # Run SpiderBot
     @catch_disconnection
-    def run_spider_bot(self):
-        
-
-        while True:
-            os.system("cls" if os.name == "nt" else "clear")
-            self.print_entry_banner()
-            print("Starting boot routine (Ctrl+C to exit)")
-            print("======================================")
-
+    def run_spiderbot(self):
+        while self.run_status:
             try:
-                if self.selected_port is None:
-                    self.scan_for_ports()
-
-                time.sleep(1)
-
-                if self.initialize_status != "Initialized":
-                    self.initialize_lx16a()
-
-                if not self.connected_servo_ids:
-                    self.get_servo_ids()
-
-                if not self.initial_pos_read and self.connected_servo_ids:
-                    self.read_initial_positions()
-
-                self.sweep_and_home_servos()
-                
-                # Verify all boot steps are completed before entering the motion window
-                if (self.selected_port is not None and
-                    self.initialize_status == "Initialized" and
-                    len(self.connected_servo_ids) == self.no_of_servos and
-                    self.initial_pos_read):
-                    self.boot_completed = True
-
-                if self.boot_completed:                    
-                    print("\n--> Boot routine completed. Entering motion window.")
-                    input("--> Press Enter to continue ...")
-
-                    self.enter_motion_window()
-
-                else:
-                    print(f"\n--> Boot routine not completed yet. Attempt boot routine {self.boot_count} of {self.time_out}...")
-                    self.reset_connection_state()
-                    self.boot_count += 1
-                    if self.boot_count > self.time_out:
-                        print("\n--> Boot routine failed after multiple attempts. Please check connections and restart.")
-                        break
-                    time.sleep(2)
+                self.boot_routine()
+                time.sleep(2)
+                self.motion_control() if self.boot_completed else None
+                time.sleep(5)
 
             except KeyboardInterrupt:
-                raise
-            except Exception as exc:
-                print(f"Error in main loop: {exc}")
-                print("Attempting to reconnect...")
-                self.reset_connection_state()
+                self.run_status = int(input("\nKeyboard Interruption: [Enter]-Continue or [0]-Exit ? :") or "1")
+                time.sleep(1)
+            self.exit_banner()
 
 
+######################################################################################################################################
+
+
+###################################################################
+# main declaration
 def main():
     try:
         SpiderBot()
     except KeyboardInterrupt:
-        print("\nInterrupted by user. Exiting...")
-
+        print("\n\n--> Force abort by user. Exiting...")
     except Exception as exc:
-        print(f"Error initializing robot: {exc}")
-
+        print(f"Error executing main(): {exc}")
     
 
-
+###################################################################
+# Run when file is main
 if __name__ == "__main__":
     main()
