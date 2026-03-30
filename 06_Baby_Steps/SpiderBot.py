@@ -297,6 +297,14 @@ class SpiderBot:
             self.homing_state = True
                     
     ###################################################################
+    # Forward Movement
+    @catch_disconnection
+    def move_fwd(self):
+        print("--- --> Moving Forward...", end="")
+
+    
+    
+    ###################################################################
     # Boot routine
     @catch_disconnection
     def boot_routine(self):
@@ -341,7 +349,39 @@ class SpiderBot:
                 self.clear_console()
                 self.entry_banner()
                 print("======== Motion Control Window (Ctrl + C to Shut Down) ========")
-                time.sleep(1)
+                print("1. Get servo positions")
+                print("2. Move Forward")
+                print("3. Move Backward")
+                print("4. Disable/Enable Torque (Safe to Pick Up)")
+                print("5. Move to Home position")
+
+                choice = input("\nEnter your choice: ")
+                if choice == "1":
+                    self.read_pos(output=True)
+                    input("Press Enter to continue...")
+                elif choice == "2":
+                    print("Moving Forward...")
+                    input("Press Enter to continue...")
+                elif choice == "3":
+                    print("Moving Backward...")
+                    input("Press Enter to continue...")
+                elif choice == "4":
+                    print("Toggling Torque...")
+                    for self.servo in self.servos[1:]:
+                        if self.servo._torque_enabled:
+                            self.servo.disable_torque()
+                        else:
+                            self.servo.enable_torque()
+                    time.sleep(0.5)
+                elif choice == "5":
+                    print("Moving to Home position...")
+                    self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id)
+                    input("Press Enter to continue...")
+                else:
+                    print("Invalid choice. Please try again.")
+
+
+                time.sleep(0.2)
         except KeyboardInterrupt:
             print("\n--> Shutting down...")
             self.shutdown()
