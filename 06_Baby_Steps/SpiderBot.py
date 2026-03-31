@@ -41,6 +41,7 @@ class SpiderBot:
         self.homing_state = False
         self.boot_completed = False
         self.boot_count = 1
+        self.warn = 0
 
         # Set path and active folder
         self.active_folder = Path(__file__).parent.resolve()
@@ -147,7 +148,8 @@ class SpiderBot:
                         vin = servo.get_vin()
                         temp = servo.get_temp()
                         if temp > 80 or vin < 6000:
-                            print(f"WARN Servo {sid}: Temp {temp}°C Vin {vin}mV")
+                            print(f"[WARN] Servo {sid}: Temp {temp}°C Vin {vin}mV")
+                            self.warn = 1
                     except:
                         pass
             else:  # Full check only when no servo_ids
@@ -157,7 +159,8 @@ class SpiderBot:
                         temp = servo.get_temp()
                         temp = servo.get_temp()
                         if temp > 80 or vin < 6000:
-                            print(f"WARN Servo {servo._id}: Temp {temp}°C Vin {vin}mV")
+                            print(f"[WARN] Servo {servo._id}: Temp {temp}°C Vin {vin}mV")
+                            self.warn = 1
                     except:
                         pass
             return func(self, *args, **kwargs)
@@ -170,6 +173,9 @@ class SpiderBot:
     @health_check
     def read_pos(self, servo_ids=None, output=False):
      
+        # Health Check Status
+        print("--- ---> Servo Health Warning !!!") if self.warn == 1 else None
+
         # Use all servos if none specified
         self.target_servos = self.servos[1:] if servo_ids is None else [self.servos[i] for i in servo_ids]
         self.positions = []
@@ -187,8 +193,8 @@ class SpiderBot:
     ###################################################################
     # Servo Move
     @catch_disconnection
-    # @health_check
-    def servo_move(self, pos, time_ms=1000, servo_ids=None, output=False, torque=True):
+    @health_check
+    def servo_move(self, pos, time_ms=1000, servo_ids=None, output=False, torque=True, rel=False):
         try:
             # Use all servos if none specified
             self.target_servos = self.servos[1:] if servo_ids is None else [self.servos[i] for i in servo_ids]
@@ -200,7 +206,7 @@ class SpiderBot:
             # Buffer moves for target servos only
             for self.servo in self.target_servos:
                 i = self.servo.get_id()
-                self.servo.move(pos[i], time_ms, wait=True)
+                self.servo.move(pos[i], time_ms, wait=True, relative=rel)
 
             # Sync start for target servos only
             for self.servo in self.target_servos:
@@ -300,7 +306,37 @@ class SpiderBot:
     # Forward Movement
     @catch_disconnection
     def move_fwd(self):
-        print("--- --> Moving Forward...", end="")
+       
+        print("--- --> Moving Forward...")
+        self.move_fwd_file = []
+        self.move_fwd_file = [f for f in os.listdir() if f.startswith("move_fwd") and f.endswith(".txt")]
+
+        if not self.move_fwd_file:
+            print("--- --- --> No forward movement data available. Skipping motion sequence...")       
+
+
+        else:
+            print("--- --- --> Executing forward movement sequence from file... (Ctrl + C to stop)")
+
+            try:
+                while True:
+                    self.servo_id = []
+                    self.min_angle_limit = []
+                    self.max_angle_limit = []
+                    self.home_angle = []
+            except KeyboardInterrupt:
+                print("\n--- --> Exiting forward movement sequence...")
+                self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id)
+                time.sleep(0.5)
+                return
+
+        time.sleep(0.5)
+
+        # Set start leg positions
+
+
+        
+
 
     
     
@@ -343,6 +379,7 @@ class SpiderBot:
     ###################################################################
     # Motion Control
     @catch_disconnection
+    @health_check
     def motion_control(self):
         try:
             while self.boot_completed:
@@ -360,8 +397,8 @@ class SpiderBot:
                     self.read_pos(output=True)
                     input("Press Enter to continue...")
                 elif choice == "2":
-                    print("Moving Forward...")
-                    input("Press Enter to continue...")
+                    self.move_fwd()
+                    
                 elif choice == "3":
                     print("Moving Backward...")
                     input("Press Enter to continue...")
@@ -376,7 +413,7 @@ class SpiderBot:
                 elif choice == "5":
                     print("Moving to Home position...")
                     self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id)
-                    input("Press Enter to continue...")
+                    time.sleep(0.5)
                 else:
                     print("Invalid choice. Please try again.")
 
@@ -431,7 +468,7 @@ class SpiderBot:
         while self.run_status:
             try:
                 self.boot_routine()
-                time.sleep(2)
+                time.sleep(1)
                 self.motion_control() if self.boot_completed else None
                 time.sleep(5)
 
