@@ -1,5 +1,5 @@
 import os
-import time
+import time, traceback
 from typing import List, Optional
 from zipfile import Path
 from pathlib import Path
@@ -14,6 +14,8 @@ def catch_disconnection(func):
             return func(self, *args, **kwargs)
         except Exception as exc:
             print(f"Connection error in [{func.__name__}]: {exc}")
+            traceback.print_exc()
+            input("Press Enter to Continue...")
             return None
 
     return wrapper
@@ -314,20 +316,42 @@ class SpiderBot:
         if not self.move_fwd_file:
             print("--- --- --> No forward movement data available. Skipping motion sequence...")       
 
-
         else:
+            self.move_fwd_file = max(self.move_fwd_file, key=os.path.getctime)
             print("--- --- --> Executing forward movement sequence from file... (Ctrl + C to stop)")
-
             try:
+                
+                self.servo_id = []
+                self.servo_angle = []
+
+                with open(self.move_fwd_file, "r") as f:
+                    self.line_count = sum(1 for self.line in f)
+                    f.seek(0)
+                    for line in f:
+                        if not line.strip():
+                            continue
+                        self.servo_info = eval(line.strip())
+                        self.servo_id.append(self.servo_info["servo_id"])
+                        self.servo_angle.append(self.servo_info["servo_angle"])
+
+                itr = 0
                 while True:
-                    self.servo_id = []
-                    self.min_angle_limit = []
-                    self.max_angle_limit = []
-                    self.home_angle = []
+                    if itr < self.line_count:
+                        print(self.servo_id[itr:itr+8])
+                        print(self.servo_angle[itr:itr+8])
+                        
+                        self.servo_move([None] + self.servo_angle[itr:itr+8], time_ms=500, servo_ids=self.servo_id[itr:itr+8], torque=True)
+
+                        itr+=8
+                        print(itr)  
+                    else:
+                        itr = 0
+
+
             except KeyboardInterrupt:
                 print("\n--- --> Exiting forward movement sequence...")
+                input("Press Enter to continue...")
                 self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id)
-                time.sleep(0.5)
                 return
 
         time.sleep(0.5)
