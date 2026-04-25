@@ -34,6 +34,7 @@ class SpiderBot:
         self.no_of_servos = self.no_of_legs * self.no_of_servos_per_leg
         # Include buffer limit for servo movement
         self.angle_buffer = 5 #degrees
+        self.stride_time = 500 #ms
 
         # Boot routine declarations
         self.selected_port = None
@@ -196,7 +197,7 @@ class SpiderBot:
     # Servo Move
     @catch_disconnection
     @health_check
-    def servo_move(self, pos, time_ms=1000, servo_ids=None, output=False, torque=True, rel=False):
+    def servo_move(self, pos, time_ms=1000, servo_ids=None, output=False, torque=True, rel=False, sequential=False, move_start=True):
         try:
             # Use all servos if none specified
             self.target_servos = self.servos[1:] if servo_ids is None else [self.servos[i] for i in servo_ids]
@@ -204,18 +205,25 @@ class SpiderBot:
             # Enable torque
             for self.servo in self.target_servos:
                 self.servo.enable_torque()
-                
+
             # Buffer moves for target servos only
             for self.servo in self.target_servos:
-                i = self.servo.get_id()
-                self.servo.move(pos[i], time_ms, wait=True, relative=rel)
+                i = self.servo._id
+                if rel:
+                    target_pos = self.servo.get_physical_angle() + pos[i]
+                    self.servo.move(target_pos, time_ms, wait=True)
+                else:
+                    self.servo.move(pos[i], time_ms, wait=True)
 
             # Sync start for target servos only
             for self.servo in self.target_servos:
-                self.servo.move_start()
+                if move_start:
+                    self.servo.move_start()
+                    if sequential:
+                        time.sleep(time_ms/1000)
 
             # Wait for duration
-            time.sleep(time_ms/1000)
+            time.sleep((time_ms)/1000)
 
             # Disable torque
             for self.servo in self.target_servos:
@@ -305,13 +313,21 @@ class SpiderBot:
             self.homing_state = True
                     
     ###################################################################
+    # Stride speed
+    @catch_disconnection
+    def stride_speed(self):
+        print("--- --> Setting Stride Speed...", end="")
+        self.stride_time = int(input(f"Enter stride time in ms (current: {self.stride_time}ms): ") or str(self.stride_time))
+        print(f"Stride time set to {self.stride_time} ms.")
+
+    ###################################################################
     # Forward Movement
     @catch_disconnection
     def move_fwd(self):
        
         print("--- --> Moving Forward...")
         self.move_fwd_file = []
-        self.move_fwd_file = [f for f in os.listdir() if f.startswith("move_fwd") and f.endswith(".txt")]
+        self.move_fwd_file = [f for f in os.listdir() if f.startswith("_move_fwd") and f.endswith(".txt")]
 
         if not self.move_fwd_file:
             print("--- --- --> No forward movement data available. Skipping motion sequence...")       
@@ -325,8 +341,8 @@ class SpiderBot:
                 self.servo_angle = []
 
                 with open(self.move_fwd_file, "r") as f:
-                    self.line_count = sum(1 for self.line in f)
-                    f.seek(0)
+                    # self.line_count = sum(1 for self.line in f)
+                    # f.seek(0)
                     for line in f:
                         if not line.strip():
                             continue
@@ -335,34 +351,29 @@ class SpiderBot:
                         self.servo_angle.append(self.servo_info["servo_angle"])
 
                 itr = 0
+                self.line_count = len(self.servo_id)
+
                 while True:
+                    
                     if itr < self.line_count:
                         print(self.servo_id[itr:itr+8])
                         print(self.servo_angle[itr:itr+8])
-                        
-                        self.servo_move([None] + self.servo_angle[itr:itr+8], time_ms=500, servo_ids=self.servo_id[itr:itr+8], torque=True)
+
+                        self.servo_move([None] + self.servo_angle[itr:itr+8], time_ms=self.stride_time, servo_ids=self.servo_id[itr:itr+8], torque=True, rel=False, sequential=False)
 
                         itr+=8
-                        print(itr)  
+                        print(itr)
+                        # input()  
                     else:
                         itr = 0
-
 
             except KeyboardInterrupt:
                 print("\n--- --> Exiting forward movement sequence...")
                 input("Press Enter to continue...")
-                self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id)
+                self.servo_move([None] + self.home_angle, time_ms=self.stride_time, servo_ids=self.servo_id)
                 return
 
         time.sleep(0.5)
-
-        # Set start leg positions
-
-
-        
-
-
-    
     
     ###################################################################
     # Boot routine
@@ -381,7 +392,7 @@ class SpiderBot:
 
         # Get initial servo positions
         print("--- --> Reading initial servo positions...")
-        self.read_pos(output=True)
+        self.read_pos(output=False)
         
         # Servo homing
         if not self.homing_state:
@@ -415,6 +426,7 @@ class SpiderBot:
                 print("3. Move Backward")
                 print("4. Disable/Enable Torque (Safe to Pick Up)")
                 print("5. Move to Home position")
+                print("6. Set Stride Speed")
 
                 choice = input("\nEnter your choice: ")
                 if choice == "1":
@@ -437,6 +449,9 @@ class SpiderBot:
                 elif choice == "5":
                     print("Moving to Home position...")
                     self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id)
+                    time.sleep(0.5)
+                elif choice == "6":
+                    self.stride_speed()
                     time.sleep(0.5)
                 else:
                     print("Invalid choice. Please try again.")

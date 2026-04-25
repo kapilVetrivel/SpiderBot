@@ -1,0 +1,44 @@
+{'servo_id': 1, 'servo_angle': 0}
+{'servo_id': 2, 'servo_angle': 0}
+{'servo_id': 3, 'servo_angle': 0}
+{'servo_id': 4, 'servo_angle': 0}
+{'servo_id': 5, 'servo_angle': 0}
+{'servo_id': 6, 'servo_angle': 0}
+{'servo_id': 7, 'servo_angle': 0}
+{'servo_id': 8, 'servo_angle': 0}
+
+{'servo_id': 1, 'servo_angle': 10}
+{'servo_id': 2, 'servo_angle': -15}
+{'servo_id': 3, 'servo_angle': 10}
+{'servo_id': 4, 'servo_angle': 0}
+{'servo_id': 5, 'servo_angle': -10}
+{'servo_id': 6, 'servo_angle': 0}
+{'servo_id': 7, 'servo_angle': -10}
+{'servo_id': 8, 'servo_angle': -15}
+
+{'servo_id': 1, 'servo_angle': 10}
+{'servo_id': 2, 'servo_angle': 15}
+{'servo_id': 3, 'servo_angle': 10}
+{'servo_id': 4, 'servo_angle': 0}
+{'servo_id': 5, 'servo_angle': -10}
+{'servo_id': 6, 'servo_angle': 0}
+{'servo_id': 7, 'servo_angle': -10}
+{'servo_id': 8, 'servo_angle': 15}
+
+{'servo_id': 1, 'servo_angle': -10}
+{'servo_id': 2, 'servo_angle': 0}
+{'servo_id': 3, 'servo_angle': -10}
+{'servo_id': 4, 'servo_angle': -15}
+{'servo_id': 5, 'servo_angle': 10}
+{'servo_id': 6, 'servo_angle': -15}
+{'servo_id': 7, 'servo_angle': 10}
+{'servo_id': 8, 'servo_angle': 0}
+
+{'servo_id': 1, 'servo_angle': -10}
+{'servo_id': 2, 'servo_angle': 0}
+{'servo_id': 3, 'servo_angle': -10}
+{'servo_id': 4, 'servo_angle': 15}
+{'servo_id': 5, 'servo_angle': 10}
+{'servo_id': 6, 'servo_angle': 15}
+{'servo_id': 7, 'servo_angle': 10}
+{'servo_id': 8, 'servo_angle': 0}
