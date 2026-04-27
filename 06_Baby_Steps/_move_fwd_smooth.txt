@@ -1,0 +1,215 @@
+{'servo_id': 1, 'servo_angle': 77.58}
+{'servo_id': 2, 'servo_angle': 29.13}
+{'servo_id': 3, 'servo_angle': 184.14}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 165.06}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 59.46}
+{'servo_id': 8, 'servo_angle': 23.61}
+
+{'servo_id': 1, 'servo_angle': 92.58}
+{'servo_id': 2, 'servo_angle': 21.63}
+{'servo_id': 3, 'servo_angle': 199.14}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 150.06}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 44.46}
+{'servo_id': 8, 'servo_angle': 16.11}
+
+{'servo_id': 1, 'servo_angle': 100.08}
+{'servo_id': 2, 'servo_angle': 17.88}
+{'servo_id': 3, 'servo_angle': 206.64}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 142.56}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 36.96}
+{'servo_id': 8, 'servo_angle': 12.36}
+
+{'servo_id': 1, 'servo_angle': 107.58}
+{'servo_id': 2, 'servo_angle': 21.63}
+{'servo_id': 3, 'servo_angle': 214.14}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 135.06}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 29.46}
+{'servo_id': 8, 'servo_angle': 16.11}
+
+{'servo_id': 1, 'servo_angle': 122.58}
+{'servo_id': 2, 'servo_angle': 29.13}
+{'servo_id': 3, 'servo_angle': 229.14}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 120.06}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 14.46}
+{'servo_id': 8, 'servo_angle': 23.61}
+
+{'servo_id': 1, 'servo_angle': 130.08}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 236.64}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 112.56}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 6.95999999999999}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 122.58}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 229.14}
+{'servo_id': 4, 'servo_angle': 28.41}
+{'servo_id': 5, 'servo_angle': 120.06}
+{'servo_id': 6, 'servo_angle': 28.89}
+{'servo_id': 7, 'servo_angle': 14.46}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 107.58}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 214.14}
+{'servo_id': 4, 'servo_angle': 20.91}
+{'servo_id': 5, 'servo_angle': 135.06}
+{'servo_id': 6, 'servo_angle': 21.39}
+{'servo_id': 7, 'servo_angle': 29.46}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 100.08}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 206.64}
+{'servo_id': 4, 'servo_angle': 17.16}
+{'servo_id': 5, 'servo_angle': 142.56}
+{'servo_id': 6, 'servo_angle': 17.64}
+{'servo_id': 7, 'servo_angle': 36.96}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 92.58}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 199.14}
+{'servo_id': 4, 'servo_angle': 20.91}
+{'servo_id': 5, 'servo_angle': 150.06}
+{'servo_id': 6, 'servo_angle': 21.39}
+{'servo_id': 7, 'servo_angle': 44.46}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 77.58}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 184.14}
+{'servo_id': 4, 'servo_angle': 28.41}
+{'servo_id': 5, 'servo_angle': 165.06}
+{'servo_id': 6, 'servo_angle': 28.89}
+{'servo_id': 7, 'servo_angle': 59.46}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 70.08}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 176.64}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 172.56}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 66.96}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 62.58}
+{'servo_id': 2, 'servo_angle': 36.63}
+{'servo_id': 3, 'servo_angle': 169.14}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 180.06}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 74.46}
+{'servo_id': 8, 'servo_angle': 31.11}
+
+{'servo_id': 1, 'servo_angle': 47.58}
+{'servo_id': 2, 'servo_angle': 44.13}
+{'servo_id': 3, 'servo_angle': 154.14}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 195.06}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 89.46}
+{'servo_id': 8, 'servo_angle': 38.61}
+
+{'servo_id': 1, 'servo_angle': 40.08}
+{'servo_id': 2, 'servo_angle': 47.88}
+{'servo_id': 3, 'servo_angle': 146.64}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 202.56}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 96.96}
+{'servo_id': 8, 'servo_angle': 42.36}
+
+{'servo_id': 1, 'servo_angle': 32.58}
+{'servo_id': 2, 'servo_angle': 44.13}
+{'servo_id': 3, 'servo_angle': 139.14}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 210.06}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 104.46}
+{'servo_id': 8, 'servo_angle': 38.61}
+
+{'servo_id': 1, 'servo_angle': 17.58}
+{'servo_id': 2, 'servo_angle': 36.63}
+{'servo_id': 3, 'servo_angle': 124.14}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 225.06}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 119.46}
+{'servo_id': 8, 'servo_angle': 31.11}
+
+{'servo_id': 1, 'servo_angle': 10.08}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 116.64}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 232.56}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 126.96}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 17.58}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 124.14}
+{'servo_id': 4, 'servo_angle': 35.91}
+{'servo_id': 5, 'servo_angle': 225.06}
+{'servo_id': 6, 'servo_angle': 36.39}
+{'servo_id': 7, 'servo_angle': 119.46}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 32.58}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 139.14}
+{'servo_id': 4, 'servo_angle': 43.41}
+{'servo_id': 5, 'servo_angle': 210.06}
+{'servo_id': 6, 'servo_angle': 43.89}
+{'servo_id': 7, 'servo_angle': 104.46}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 40.08}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 146.64}
+{'servo_id': 4, 'servo_angle': 47.16}
+{'servo_id': 5, 'servo_angle': 202.56}
+{'servo_id': 6, 'servo_angle': 47.64}
+{'servo_id': 7, 'servo_angle': 96.96}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 47.58}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 154.14}
+{'servo_id': 4, 'servo_angle': 43.41}
+{'servo_id': 5, 'servo_angle': 195.06}
+{'servo_id': 6, 'servo_angle': 43.89}
+{'servo_id': 7, 'servo_angle': 89.46}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 62.58}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 169.14}
+{'servo_id': 4, 'servo_angle': 35.91}
+{'servo_id': 5, 'servo_angle': 180.06}
+{'servo_id': 6, 'servo_angle': 36.39}
+{'servo_id': 7, 'servo_angle': 74.46}
+{'servo_id': 8, 'servo_angle': 27.36}
+
+{'servo_id': 1, 'servo_angle': 70.08}
+{'servo_id': 2, 'servo_angle': 32.88}
+{'servo_id': 3, 'servo_angle': 176.64}
+{'servo_id': 4, 'servo_angle': 32.16}
+{'servo_id': 5, 'servo_angle': 172.56}
+{'servo_id': 6, 'servo_angle': 32.64}
+{'servo_id': 7, 'servo_angle': 66.96}
+{'servo_id': 8, 'servo_angle': 27.36}

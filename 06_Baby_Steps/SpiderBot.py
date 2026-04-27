@@ -34,7 +34,7 @@ class SpiderBot:
         self.no_of_servos = self.no_of_legs * self.no_of_servos_per_leg
         # Include buffer limit for servo movement
         self.angle_buffer = 5 #degrees
-        self.stride_time = 500 #ms
+        self.stride_time = 400 #ms
 
         # Boot routine declarations
         self.selected_port = None
@@ -45,6 +45,7 @@ class SpiderBot:
         self.boot_completed = False
         self.boot_count = 1
         self.warn = 0
+        self.torque_state = 1 # 1-Enabled, 0-Disabled
 
         # Set path and active folder
         self.active_folder = Path(__file__).parent.resolve()
@@ -196,15 +197,16 @@ class SpiderBot:
     ###################################################################
     # Servo Move
     @catch_disconnection
-    @health_check
+    # @health_check
     def servo_move(self, pos, time_ms=1000, servo_ids=None, output=False, torque=True, rel=False, sequential=False, move_start=True):
         try:
             # Use all servos if none specified
             self.target_servos = self.servos[1:] if servo_ids is None else [self.servos[i] for i in servo_ids]
 
-            # Enable torque
-            for self.servo in self.target_servos:
-                self.servo.enable_torque()
+            # Enable torque if self.torque_state is 0
+            if self.torque_state == 0:
+                for self.servo in self.target_servos:
+                    self.servo.enable_torque()
 
             # Buffer moves for target servos only
             for self.servo in self.target_servos:
@@ -308,7 +310,7 @@ class SpiderBot:
                     # self.max_angle_limit.append(self.servo_info["max_angle"])
                     self.home_angle.append(self.servo_info["home_angle"])
 
-            self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id)
+            self.servo_move([None] + self.home_angle, time_ms=self.stride_time, servo_ids=self.servo_id)
             print("Successful !")
             self.homing_state = True
                     
@@ -343,7 +345,7 @@ class SpiderBot:
                 with open(self.move_fwd_file, "r") as f:
                     # self.line_count = sum(1 for self.line in f)
                     # f.seek(0)
-                    for line in f:
+                    for line in f.readlines():
                         if not line.strip():
                             continue
                         self.servo_info = eval(line.strip())
@@ -443,8 +445,10 @@ class SpiderBot:
                     for self.servo in self.servos[1:]:
                         if self.servo._torque_enabled:
                             self.servo.disable_torque()
+                            self.torque_state = 0
                         else:
                             self.servo.enable_torque()
+                            self.torque_state = 1
                     time.sleep(0.5)
                 elif choice == "5":
                     print("Moving to Home position...")
@@ -494,7 +498,7 @@ class SpiderBot:
                     # self.max_angle_limit.append(self.servo_info["max_angle"])
                     self.home_angle.append(self.servo_info["home_angle"])
 
-            self.servo_move([None] + self.home_angle, time_ms=1000, servo_ids=self.servo_id, torque=False)
+            self.servo_move([None] + self.home_angle, time_ms=self.stride_time, servo_ids=self.servo_id, torque=False)
 
             print("Successful ! Torque disabled - Safe to pick up.")                   
 
